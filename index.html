@@ -1,294 +1,300 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Download, RefreshCw, Info, RotateCw } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4x6 名片排版產生器</title>
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-gray-50 p-6 font-sans">
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-800">4x6 名片排版產生器</h1>
+      <p class="text-gray-500 mt-2">將兩張圖片排版至 4x6 尺寸，可直接至超商相片列印服務印出並沿裁切線剪裁。</p>
+    </header>
 
-export default function App() {
-  const canvasRef = useRef(null);
-  const [frontImg, setFrontImg] = useState(null);
-  const [backImg, setBackImg] = useState(null);
-  const [frontRotated, setFrontRotated] = useState(false);
-  const [backRotated, setBackRotated] = useState(false);
-
-  // 4x6 畫布設定 (300 DPI)
-  const DPI = 300;
-  const CANVAS_WIDTH = 4 * DPI; // 1200px
-  const CANVAS_HEIGHT = 6 * DPI; // 1800px
-
-  // 台灣標準名片 90mm x 54mm 轉換像素
-  const mmToPx = (mm) => (mm / 25.4) * DPI;
-  const CARD_W = mmToPx(90);
-  const CARD_H = mmToPx(54);
-  const GAP = mmToPx(10); // 兩張卡片間距 10mm
-
-  // 計算置中座標
-  const START_X = (CANVAS_WIDTH - CARD_W) / 2;
-  const START_Y = (CANVAS_HEIGHT - (CARD_H * 2 + GAP)) / 2;
-
-  const handleImageUpload = (e, side) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        if (side === 'front') setFrontImg(img);
-        if (side === 'back') setBackImg(img);
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const resetImages = () => {
-    setFrontImg(null);
-    setBackImg(null);
-    setFrontRotated(false);
-    setBackRotated(false);
-  };
-
-  const drawCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    // 填滿白色背景
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    // 圖片滿版裁切邏輯 (支援旋轉)
-    const drawImageCover = (img, targetX, targetY, targetW, targetH, rotate90 = false) => {
-      ctx.save();
-      
-      // 設定裁切範圍
-      ctx.beginPath();
-      ctx.rect(targetX, targetY, targetW, targetH);
-      ctx.clip();
-
-      // 移至畫布中心點
-      const cx = targetX + targetW / 2;
-      const cy = targetY + targetH / 2;
-      ctx.translate(cx, cy);
-
-      let drawW = targetW;
-      let drawH = targetH;
-
-      // 旋轉90度時，繪製的長寬目標互換
-      if (rotate90) {
-        ctx.rotate(Math.PI / 2);
-        drawW = targetH;
-        drawH = targetW;
-      }
-
-      const imgRatio = img.width / img.height;
-      const targetRatio = drawW / drawH;
-      let sWidth = img.width;
-      let sHeight = img.height;
-      let sx = 0;
-      let sy = 0;
-
-      if (imgRatio > targetRatio) {
-        sWidth = img.height * targetRatio;
-        sx = (img.width - sWidth) / 2;
-      } else {
-        sHeight = img.width / targetRatio;
-        sy = (img.height - sHeight) / 2;
-      }
-
-      // 在轉換過的中心點繪製
-      ctx.drawImage(img, sx, sy, sWidth, sHeight, -drawW / 2, -drawH / 2, drawW, drawH);
-      
-      ctx.restore();
-    };
-
-    // 繪製裁切線 (十字標記)
-    const drawCropMarks = (x, y, w, h) => {
-      ctx.strokeStyle = '#666666';
-      ctx.lineWidth = 2;
-      const markLen = 40; // 裁切線長度
-      const offset = 10;  // 距離卡片的偏移量
-
-      ctx.beginPath();
-      // 左上
-      ctx.moveTo(x - offset, y); ctx.lineTo(x - offset - markLen, y);
-      ctx.moveTo(x, y - offset); ctx.lineTo(x, y - offset - markLen);
-      // 右上
-      ctx.moveTo(x + w + offset, y); ctx.lineTo(x + w + offset + markLen, y);
-      ctx.moveTo(x + w, y - offset); ctx.lineTo(x + w, y - offset - markLen);
-      // 左下
-      ctx.moveTo(x - offset, y + h); ctx.lineTo(x - offset - markLen, y + h);
-      ctx.moveTo(x, y + h + offset); ctx.lineTo(x, y + h + offset + markLen);
-      // 右下
-      ctx.moveTo(x + w + offset, y + h); ctx.lineTo(x + w + offset + markLen, y + h);
-      ctx.moveTo(x + w, y + h + offset); ctx.lineTo(x + w, y + h + offset + markLen);
-      ctx.stroke();
-
-      // 加上淺灰色外框，方便預覽時辨識
-      ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, w, h);
-    };
-
-    // 1. 繪製正面
-    if (frontImg) {
-      drawImageCover(frontImg, START_X, START_Y, CARD_W, CARD_H, frontRotated);
-    } else {
-      ctx.fillStyle = '#f3f4f6';
-      ctx.fillRect(START_X, START_Y, CARD_W, CARD_H);
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '48px "Microsoft JhengHei", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('正面圖片區', START_X + CARD_W / 2, START_Y + CARD_H / 2 - 25);
-      ctx.fillText('(90x54mm)', START_X + CARD_W / 2, START_Y + CARD_H / 2 + 35);
-    }
-    drawCropMarks(START_X, START_Y, CARD_W, CARD_H);
-
-    // 2. 繪製背面
-    const backY = START_Y + CARD_H + GAP;
-    if (backImg) {
-      drawImageCover(backImg, START_X, backY, CARD_W, CARD_H, backRotated);
-    } else {
-      ctx.fillStyle = '#f3f4f6';
-      ctx.fillRect(START_X, backY, CARD_W, CARD_H);
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '48px "Microsoft JhengHei", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('背面圖片區', START_X + CARD_W / 2, backY + CARD_H / 2 - 25);
-      ctx.fillText('(90x54mm)', START_X + CARD_W / 2, backY + CARD_H / 2 + 35);
-    }
-    drawCropMarks(START_X, backY, CARD_W, CARD_H);
-  };
-
-  useEffect(() => {
-    drawCanvas();
-  }, [frontImg, backImg, frontRotated, backRotated]);
-
-  const handleDownload = () => {
-    const canvas = canvasRef.current;
-    // 輸出高品質 JPEG (超商列印佳)
-    const url = canvas.toDataURL('image/jpeg', 1.0);
-    const link = document.createElement('a');
-    link.download = 'business-card-4x6-print.jpg';
-    link.href = url;
-    link.click();
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-6 font-sans">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">4x6 名片排版產生器</h1>
-          <p className="text-gray-500 mt-2">將兩張圖片排版至 4x6 尺寸，可直接至超商相片列印服務印出並沿裁切線剪裁。</p>
-        </header>
-
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* 左側操作區 */}
-          <div className="w-full md:w-1/3 space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">名片設定</h2>
-              
-              {/* 正面上傳 */}
-              <div className="mb-6">
-                <div className="flex justify-between items-end mb-2">
-                  <label className="block text-sm font-medium text-gray-700">正面圖片</label>
-                  {frontImg && (
-                    <button onClick={() => setFrontRotated(!frontRotated)} className="text-sm flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                      <RotateCw className="w-4 h-4 mr-1" />
-                      旋轉 90°
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'front')}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
-                    <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-gray-600 font-medium">
-                      {frontImg ? '已上傳正面 (點擊更換)' : '點擊上傳正面'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 背面上傳 */}
-              <div className="mb-6">
-                <div className="flex justify-between items-end mb-2">
-                  <label className="block text-sm font-medium text-gray-700">背面圖片</label>
-                  {backImg && (
-                    <button onClick={() => setBackRotated(!backRotated)} className="text-sm flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                      <RotateCw className="w-4 h-4 mr-1" />
-                      旋轉 90°
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'back')}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
-                    <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-gray-600 font-medium">
-                      {backImg ? '已上傳背面 (點擊更換)' : '點擊上傳背面'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDownload}
-                  disabled={!frontImg && !backImg}
-                  className="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Download className="w-5 h-5 mr-2" />
-                  下載 4x6 圖片
-                </button>
-                <button
-                  onClick={resetImages}
-                  className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors"
-                  title="重新設定"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                </button>
-              </div>
+    <div class="flex flex-col md:flex-row gap-8">
+      <!-- 左側操作區 -->
+      <div class="w-full md:w-1/3 space-y-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 class="text-lg font-semibold text-gray-800 mb-4">名片設定</h2>
+          
+          <!-- 正面上傳 -->
+          <div class="mb-6">
+            <div class="flex justify-between items-end mb-2">
+              <label class="block text-sm font-medium text-gray-700">正面圖片</label>
+              <button id="frontRotateBtn" class="hidden text-sm flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                <i data-lucide="rotate-cw" class="w-4 h-4 mr-1"></i>
+                旋轉 90°
+              </button>
             </div>
-
-            <div className="bg-blue-50 border border-blue-100 p-5 rounded-xl flex items-start text-blue-800 text-sm">
-              <Info className="w-5 h-5 text-blue-500 mr-3 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold mb-1">超商列印建議</p>
-                <ul className="list-disc list-inside space-y-1 text-blue-700/80">
-                  <li>選擇 <strong>4x6 尺寸 (照片相紙)</strong>。</li>
-                  <li>建議選擇 <strong>「無邊界列印」</strong> 或 <strong>「符合紙張大小」</strong> 以維持正確比例。</li>
-                  <li>列印後，請依循灰色裁切線（十字標）切下名片即可。</li>
-                </ul>
+            <div class="relative">
+              <input type="file" id="frontUpload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <div id="frontDropzone" class="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                <i data-lucide="upload" class="w-5 h-5 text-gray-400 mr-2"></i>
+                <span id="frontLabel" class="text-gray-600 font-medium">點擊上傳正面</span>
               </div>
             </div>
           </div>
 
-          {/* 右側畫布預覽區 */}
-          <div className="w-full md:w-2/3 flex flex-col items-center">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 inline-block">
-              <canvas
-                ref={canvasRef}
-                width={CANVAS_WIDTH}
-                height={CANVAS_HEIGHT}
-                className="w-full max-w-md h-auto border border-gray-200 shadow-inner block rounded-sm bg-white"
-                style={{ aspectRatio: '2/3' }}
-              />
+          <!-- 背面上傳 -->
+          <div class="mb-6">
+            <div class="flex justify-between items-end mb-2">
+              <label class="block text-sm font-medium text-gray-700">背面圖片</label>
+              <button id="backRotateBtn" class="hidden text-sm flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                <i data-lucide="rotate-cw" class="w-4 h-4 mr-1"></i>
+                旋轉 90°
+              </button>
             </div>
-            <p className="text-sm text-gray-400 mt-4">預覽圖 (實際下載為 1200x1800 高解析度圖檔)</p>
+            <div class="relative">
+              <input type="file" id="backUpload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              <div id="backDropzone" class="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                <i data-lucide="upload" class="w-5 h-5 text-gray-400 mr-2"></i>
+                <span id="backLabel" class="text-gray-600 font-medium">點擊上傳背面</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button id="downloadBtn" disabled class="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <i data-lucide="download" class="w-5 h-5 mr-2"></i>
+              下載 4x6 圖片
+            </button>
+            <button id="resetBtn" class="flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors" title="重新設定">
+              <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-100 p-5 rounded-xl flex items-start text-blue-800 text-sm">
+          <i data-lucide="info" class="w-5 h-5 text-blue-500 mr-3 flex-shrink-0 mt-0.5"></i>
+          <div>
+            <p class="font-semibold mb-1">超商列印建議</p>
+            <ul class="list-disc list-inside space-y-1 text-blue-700/80">
+              <li>選擇 <strong>4x6 尺寸 (照片相紙)</strong>。</li>
+              <li>建議選擇 <strong>「無邊界列印」</strong> 或 <strong>「符合紙張大小」</strong> 以維持正確比例。</li>
+              <li>列印後，請依循灰色裁切線（十字標）切下名片即可。</li>
+            </ul>
           </div>
         </div>
       </div>
+
+      <!-- 右側畫布預覽區 -->
+      <div class="w-full md:w-2/3 flex flex-col items-center">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 inline-block">
+          <canvas id="cardCanvas" class="w-full max-w-md h-auto border border-gray-200 shadow-inner block rounded-sm bg-white" style="aspect-ratio: 2/3;"></canvas>
+        </div>
+        <p class="text-sm text-gray-400 mt-4">預覽圖 (實際下載為 1200x1800 高解析度圖檔)</p>
+      </div>
     </div>
-  );
-}
+  </div>
+
+  <script>
+    // 初始化 Lucide 圖示
+    lucide.createIcons();
+
+    // 狀態變數
+    let frontImg = null;
+    let backImg = null;
+    let frontRotated = false;
+    let backRotated = false;
+
+    // 畫布與 DOM 元素
+    const canvas = document.getElementById('cardCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 4x6 畫布設定 (300 DPI)
+    const DPI = 300;
+    const CANVAS_WIDTH = 4 * DPI; // 1200px
+    const CANVAS_HEIGHT = 6 * DPI; // 1800px
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+
+    // 台灣標準名片 90mm x 54mm 轉換像素
+    const mmToPx = (mm) => (mm / 25.4) * DPI;
+    const CARD_W = mmToPx(90);
+    const CARD_H = mmToPx(54);
+    const GAP = mmToPx(10); // 兩張卡片間距 10mm
+
+    // 計算置中座標
+    const START_X = (CANVAS_WIDTH - CARD_W) / 2;
+    const START_Y = (CANVAS_HEIGHT - (CARD_H * 2 + GAP)) / 2;
+
+    // 繪製畫布邏輯
+    function drawCanvas() {
+      // 填滿白色背景
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+      // 圖片滿版裁切邏輯 (支援旋轉)
+      const drawImageCover = (img, targetX, targetY, targetW, targetH, rotate90 = false) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(targetX, targetY, targetW, targetH);
+        ctx.clip();
+
+        const cx = targetX + targetW / 2;
+        const cy = targetY + targetH / 2;
+        ctx.translate(cx, cy);
+
+        let drawW = targetW;
+        let drawH = targetH;
+
+        if (rotate90) {
+          ctx.rotate(Math.PI / 2);
+          drawW = targetH;
+          drawH = targetW;
+        }
+
+        const imgRatio = img.width / img.height;
+        const targetRatio = drawW / drawH;
+        let sWidth = img.width;
+        let sHeight = img.height;
+        let sx = 0;
+        let sy = 0;
+
+        if (imgRatio > targetRatio) {
+          sWidth = img.height * targetRatio;
+          sx = (img.width - sWidth) / 2;
+        } else {
+          sHeight = img.width / targetRatio;
+          sy = (img.height - sHeight) / 2;
+        }
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+      };
+
+      // 繪製裁切線 (十字標記)
+      const drawCropMarks = (x, y, w, h) => {
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 2;
+        const markLen = 40;
+        const offset = 10;
+
+        ctx.beginPath();
+        ctx.moveTo(x - offset, y); ctx.lineTo(x - offset - markLen, y);
+        ctx.moveTo(x, y - offset); ctx.lineTo(x, y - offset - markLen);
+        ctx.moveTo(x + w + offset, y); ctx.lineTo(x + w + offset + markLen, y);
+        ctx.moveTo(x + w, y - offset); ctx.lineTo(x + w, y - offset - markLen);
+        ctx.moveTo(x - offset, y + h); ctx.lineTo(x - offset - markLen, y + h);
+        ctx.moveTo(x, y + h + offset); ctx.lineTo(x, y + h + offset + markLen);
+        ctx.moveTo(x + w + offset, y + h); ctx.lineTo(x + w + offset + markLen, y + h);
+        ctx.moveTo(x + w, y + h + offset); ctx.lineTo(x + w, y + h + offset + markLen);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+      };
+
+      // 1. 繪製正面
+      if (frontImg) {
+        drawImageCover(frontImg, START_X, START_Y, CARD_W, CARD_H, frontRotated);
+      } else {
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(START_X, START_Y, CARD_W, CARD_H);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '48px "Microsoft JhengHei", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('正面圖片區', START_X + CARD_W / 2, START_Y + CARD_H / 2 - 25);
+        ctx.fillText('(90x54mm)', START_X + CARD_W / 2, START_Y + CARD_H / 2 + 35);
+      }
+      drawCropMarks(START_X, START_Y, CARD_W, CARD_H);
+
+      // 2. 繪製背面
+      const backY = START_Y + CARD_H + GAP;
+      if (backImg) {
+        drawImageCover(backImg, START_X, backY, CARD_W, CARD_H, backRotated);
+      } else {
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(START_X, backY, CARD_W, CARD_H);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '48px "Microsoft JhengHei", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('背面圖片區', START_X + CARD_W / 2, backY + CARD_H / 2 - 25);
+        ctx.fillText('(90x54mm)', START_X + CARD_W / 2, backY + CARD_H / 2 + 35);
+      }
+      drawCropMarks(START_X, backY, CARD_W, CARD_H);
+      
+      updateUI();
+    }
+
+    // 更新介面狀態
+    function updateUI() {
+      // 下載按鈕狀態
+      document.getElementById('downloadBtn').disabled = !frontImg && !backImg;
+      
+      // 正面 UI
+      document.getElementById('frontLabel').textContent = frontImg ? '已上傳正面 (點擊更換)' : '點擊上傳正面';
+      const frontRotateBtn = document.getElementById('frontRotateBtn');
+      if (frontImg) frontRotateBtn.classList.remove('hidden');
+      else frontRotateBtn.classList.add('hidden');
+
+      // 背面 UI
+      document.getElementById('backLabel').textContent = backImg ? '已上傳背面 (點擊更換)' : '點擊上傳背面';
+      const backRotateBtn = document.getElementById('backRotateBtn');
+      if (backImg) backRotateBtn.classList.remove('hidden');
+      else backRotateBtn.classList.add('hidden');
+    }
+
+    // 處理圖片上傳
+    function handleUpload(event, side) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          if (side === 'front') frontImg = img;
+          if (side === 'back') backImg = img;
+          drawCanvas();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 綁定事件
+    document.getElementById('frontUpload').addEventListener('change', (e) => handleUpload(e, 'front'));
+    document.getElementById('backUpload').addEventListener('change', (e) => handleUpload(e, 'back'));
+    
+    document.getElementById('frontRotateBtn').addEventListener('click', () => {
+      frontRotated = !frontRotated;
+      drawCanvas();
+    });
+    
+    document.getElementById('backRotateBtn').addEventListener('click', () => {
+      backRotated = !backRotated;
+      drawCanvas();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      frontImg = null;
+      backImg = null;
+      frontRotated = false;
+      backRotated = false;
+      document.getElementById('frontUpload').value = '';
+      document.getElementById('backUpload').value = '';
+      drawCanvas();
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      const url = canvas.toDataURL('image/jpeg', 1.0);
+      const link = document.createElement('a');
+      link.download = 'business-card-4x6-print.jpg';
+      link.href = url;
+      link.click();
+    });
+
+    // 初始繪製
+    drawCanvas();
+  </script>
+</body>
+</html>
