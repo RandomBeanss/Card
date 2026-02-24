@@ -58,6 +58,16 @@
             </div>
           </div>
 
+          <!-- 尺寸微調 -->
+          <div class="mb-6">
+            <div class="flex justify-between items-end mb-2">
+              <label class="block text-sm font-medium text-gray-700">列印尺寸微調</label>
+              <span id="scaleValue" class="text-sm font-bold text-blue-600">103.5%</span>
+            </div>
+            <input type="range" id="scaleSlider" min="90" max="115" step="0.5" value="103.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            <p class="text-xs text-gray-500 mt-2">若印出偏小，可調大比例（約 103%~105%）抵銷印表機預設的縮放。</p>
+          </div>
+
           <div class="flex flex-col gap-3">
             <div class="flex gap-3">
               <button id="downloadBtn" disabled class="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -121,16 +131,19 @@
 
     // 台灣標準名片 90mm x 54mm 轉換像素
     const mmToPx = (mm) => (mm / 25.4) * DPI;
-    const CARD_W = mmToPx(90);
-    const CARD_H = mmToPx(54);
     const GAP = mmToPx(10); // 兩張卡片間距 10mm
-
-    // 計算置中座標
-    const START_X = (CANVAS_WIDTH - CARD_W) / 2;
-    const START_Y = (CANVAS_HEIGHT - (CARD_H * 2 + GAP)) / 2;
 
     // 繪製畫布邏輯
     function drawCanvas() {
+      // 取得縮放比例
+      const scale = parseFloat(document.getElementById('scaleSlider').value) / 100;
+      const CARD_W = mmToPx(90) * scale;
+      const CARD_H = mmToPx(54) * scale;
+
+      // 計算置中座標
+      const START_X = (CANVAS_WIDTH - CARD_W) / 2;
+      const START_Y = (CANVAS_HEIGHT - (CARD_H * 2 + GAP)) / 2;
+
       // 填滿白色背景
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -281,6 +294,11 @@
       drawCanvas();
     });
 
+    document.getElementById('scaleSlider').addEventListener('input', (e) => {
+      document.getElementById('scaleValue').textContent = e.target.value + '%';
+      drawCanvas();
+    });
+
     document.getElementById('resetBtn').addEventListener('click', () => {
       frontImg = null;
       backImg = null;
@@ -288,6 +306,8 @@
       backRotated = false;
       document.getElementById('frontUpload').value = '';
       document.getElementById('backUpload').value = '';
+      document.getElementById('scaleSlider').value = 103.5;
+      document.getElementById('scaleValue').textContent = '103.5%';
       drawCanvas();
     });
 
