@@ -62,10 +62,10 @@
           <div class="mb-6">
             <div class="flex justify-between items-end mb-2">
               <label class="block text-sm font-medium text-gray-700">列印尺寸微調</label>
-              <span id="scaleValue" class="text-sm font-bold text-blue-600">103.5%</span>
+              <span id="scaleValue" class="text-sm font-bold text-blue-600">110%</span>
             </div>
-            <input type="range" id="scaleSlider" min="90" max="115" step="0.5" value="103.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
-            <p class="text-xs text-gray-500 mt-2">若印出偏小，可調大比例（以調整預設103.5%為最接近原尺寸大小）抵銷印表機預設的縮放。</p>
+            <input type="range" id="scaleSlider" min="90" max="115" step="0.5" value="110" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            <p class="text-xs text-gray-500 mt-2">若印出偏小，可調大比例（以調整預設110%為最接近名片大小）抵銷印表機預設的縮放。</p>
           </div>
 
           <div class="flex flex-col gap-3">
@@ -306,8 +306,8 @@
       backRotated = false;
       document.getElementById('frontUpload').value = '';
       document.getElementById('backUpload').value = '';
-      document.getElementById('scaleSlider').value = 103.5;
-      document.getElementById('scaleValue').textContent = '103.5%';
+      document.getElementById('scaleSlider').value = 110;
+      document.getElementById('scaleValue').textContent = '110%';
       drawCanvas();
     });
 
@@ -324,4 +324,3 @@
   </script>
 </body>
 </html>
-
